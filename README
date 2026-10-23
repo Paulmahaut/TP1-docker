@@ -17,3 +17,65 @@ docker network connect app-network my-database #by default the contenair is isol
 
 The flag -e allow us to create the environment parameters at the start of the image building, thus the parameters are specific to each and we have not to share our login when sharing our docker on github or to a collegue. (formulation can be improved)
 
+1-2 Why do we need a volume to be attached to our postgres container?
+
+Without a volume, the data is lost when the container is removed. The volume saves it on the host, so a new container gets it back.
+
+1-3 Document your database container essentials: commands and Dockerfile.
+
+Dockerfile:
+    FROM postgres:17.2-alpine
+    ENV POSTGRES_DB=db POSTGRES_USER=usr POSTGRES_PASSWORD=pwd
+    COPY *.sql /docker-entrypoint-initdb.d/
+
+The SQL scripts in /docker-entrypoint-initdb.d/ create the tables and insert the data at the first start.
+
+Commands:
+    docker network create app-network
+    docker build -t my-database .
+    docker run -d --name my-database --network app-network -v ~/TP1/database/pgdata:/var/lib/postgresql/data my-database
+    docker run -d -p "8090:8080" --net=app-network --name=adminer adminer
+
+1-4 Why do we need a multistage build? And explain each step of this dockerfile.
+
+The JDK and Maven are only needed to build the app, the JRE is enough to run it. So the final image only keeps the .jar and is much lighter.
+- Stage 1 (JDK): install Maven, copy pom.xml and src, run mvn package to build the .jar.
+- Stage 2 (JRE): copy only the .jar from stage 1 and run it with java -jar.
+
+1-5 Why do we need a reverse proxy?
+
+It is the single entry point of the app: it receives the requests and forwards them to the API, so the API is not exposed directly. It can also be used for HTTPS, a front-end or load balancing.
+
+1-6 Why is docker-compose so important?
+
+It describes all the containers in one file, so the whole app can be started or stopped with one command instead of running each container by hand.
+
+1-7 Document docker-compose most important commands.
+
+- docker compose up -d --build: build and start everything
+- docker compose ps: see the services
+- docker compose logs: see the logs
+- docker compose down: stop and remove everything
+
+1-8 Document your docker-compose file.
+
+- 3 services (database, backend, httpd), each built from its folder, all on the same network.
+- Only httpd exposes a port (80), the database and the API are only reachable through it.
+- The backend waits for the database to be ready (healthcheck + depends_on).
+- A volume keeps the database data, and restart: unless-stopped restarts a container if it crashes.
+
+1-9 Document your publication commands and published images in dockerhub.
+
+    docker login
+    docker tag tp1-database paulmahaut/my-database:1.0
+    docker tag tp1-backend paulmahaut/simple-api:1.0
+    docker tag tp1-httpd paulmahaut/http-server:1.0
+    docker push paulmahaut/my-database:1.0
+    docker push paulmahaut/simple-api:1.0
+    docker push paulmahaut/http-server:1.0
+
+Published images: paulmahaut/my-database:1.0, paulmahaut/simple-api:1.0, paulmahaut/http-server:1.0
+
+1-10 Why do we put our images into an online repo?
+
+So other people or servers can download and use them without rebuilding them, with a clear version number.
